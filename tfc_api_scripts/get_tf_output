@@ -1,0 +1,43 @@
+#!/usr/bin/env python3
+import os
+import json
+import requests
+
+def get_token():
+    # get the credentials for your TFC environment
+    home_directory = os.environ["HOME"]
+    file = open(home_directory + '/.terraform.d/credentials.tfrc.json')
+
+    # get the token data
+    data = json.load(file)
+    token = (data["credentials"]["app.terraform.io"]["token"])
+    
+    # Closing file
+    file.close()
+    return token
+
+# token = get_token()
+
+def header(token, organization, url):
+    # get the variables from terraform cloud
+    headers = {
+        'Authorization': f"Bearer {token}",
+        'Content-Type': 'application/vnd.api+json',
+    }
+
+    workspace_url = "https://app.terraform.io/api/v2/organizations/" + organization + url
+    response = requests.get(workspace_url, headers=headers)
+    data = response.json()
+
+    # make it pretty
+    pretty_json = json.dumps(data, indent=2)
+
+    return pretty_json
+
+
+# Get the values
+organization_name = str(input("organization name? (default: patrickmunne) : ") or "patrickmunne")
+api_endpoint      = str(input("api endpoint? (default: /varsets) : ") or "/varsets")
+
+print(header(get_token(), organization_name, api_endpoint))
+  

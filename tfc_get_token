@@ -1,0 +1,21 @@
+#!/usr/bin/env python3
+import os
+import json
+
+def get_token():
+    # get the credentials for your TFC environment
+    home_directory = os.environ["HOME"]
+    file = open(home_directory + '/.terraform.d/credentials.tfrc.json')
+
+    # get the token data
+    data = json.load(file)
+    result = (data["credentials"]["app.terraform.io"]["token"])
+    
+    # Closing file
+    file.close()
+    return result
+
+token = get_token()
+
+print("TFC token is the following:")
+print("export TOKEN="+ token)
