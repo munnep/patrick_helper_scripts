@@ -1,0 +1,44 @@
+#!/usr/bin/env python3
+import os
+import json
+import requests
+
+def get_token():
+    # get the credentials for your TFC environment
+    home_directory = os.environ["HOME"]
+    file = open(home_directory + '/.terraform.d/credentials.tfrc.json')
+
+    # get the token data
+    data = json.load(file)
+    token = (data["credentials"]["app.terraform.io"]["token"])
+    
+    # Closing file
+    file.close()
+    return token
+
+# token = get_token()
+
+def header(token, organization, team_details):
+    # get the variables from terraform cloud
+    headers = {
+        'Authorization': f"Bearer {token}",
+        'Content-Type': 'application/vnd.api+json',
+    }
+
+    workspace_url = "https://app.terraform.io/api/v2/organizations/" + organization + "/teams"
+    response = requests.get(workspace_url, headers=headers)
+    data = response.json()
+    teams = data["data"]
+    
+    for team in teams:
+        if team["attributes"]["name"] == team_details:
+            return(json.dumps(team, indent=2))
+
+
+# Get the values
+organization_name = str(input("organization name? (default: patrickmunne) : ") or "patrickmunne")
+team_details      = str(input("For which team do you want to know the details? (default: Dev-team) : ") or "Dev-team")
+
+print(header(get_token(), organization_name, team_details))
+  
+  
