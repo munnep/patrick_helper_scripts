@@ -1,0 +1,117 @@
+#!/usr/bin/env python3
+import os
+import json
+import requests
+
+# Get the values
+organization_name = str(input("organization name? (default: patrickmunne) : ") or "patrickmunne")  
+tfe_host = str(input("TFE host? (default: app.terraform.io) : ") or "app.terraform.io")  
+filename = str(input("default output file? (default: output.txt) : ") or "output.txt")
+
+# This will create a new file called like the filename
+with open(filename, "w") as f:
+  f.write("==================================================" + "\n")    
+  f.write("OVERVIEW WORKSPACE AND RUNS" + "\n")    
+  f.write("organization: " + organization_name + "\n")   
+  f.write("==================================================" + "\n")   
+  f.write("\n")   
+
+# this will get the token from the credentials file on disk
+def get_token():
+    # get the credentials for your TFC environment
+    home_directory = os.environ["HOME"]
+    file = open(home_directory + '/.terraform.d/credentials.tfrc.json')
+
+    # get the token data
+    data = json.load(file)
+    token = (data["credentials"]["app.terraform.io"]["token"])
+    
+    # Closing file
+    file.close()
+    return token
+
+# get the workspace id
+def workspaces_id(token, organization):
+    # get the variables from terraform cloud
+    headers = {
+        'Authorization': f"Bearer {token}",
+        'Content-Type': 'application/vnd.api+json',
+    }
+    
+    # pagesetting. Maximum is 100. If you have more workspace we need to loop over them. That is why we have this 
+    pagesize = "100"
+    pages_url = "https://" + tfe_host + "/api/v2/organizations/"+ organization + "/workspaces" +"?page%5Bsize%5D=" + pagesize
+    response = requests.get(pages_url, headers=headers)
+    data = response.json()
+    total_pages = int(data["meta"]["pagination"]["total-pages"])
+
+    # where we will store all the workspace ID
+    workspace_id_total = []
+    
+    # loop over the workspace pages
+    for page in range(total_pages):
+      
+      workspace_url = "https://" + tfe_host + "/api/v2/organizations/"+ organization + "/workspaces?page%5Bsize%5D=" + pagesize + "&page%5Bnumber%5D=" + str(page+1)
+      response = requests.get(workspace_url, headers=headers)
+      data = response.json()
+      workspaces = data["data"]
+     
+      # go over the workspaces to get the id and remove the " and add it to a list 
+      for workspace in workspaces:
+        workspace_id = json.dumps(workspace["id"]).replace('"','')
+        workspace_id_total.append(workspace_id)
+    
+    # return all the workspaces id 
+    return workspace_id_total
+
+def get_runs(token,organization,workspace_id_list):
+    # get the variables from terraform cloud
+    headers = {
+        'Authorization': f"Bearer {token}",
+        'Content-Type': 'application/vnd.api+json',
+    }
+    
+ 
+    for workspace_id in workspace_id_list:
+
+      # Get the workspace NAME  
+      workspace_url = "https://" + tfe_host + "/api/v2/workspaces/"+ workspace_id
+      response = requests.get(workspace_url, headers=headers)
+      data = response.json()
+      workspace_name = data["data"]["attributes"]["name"]     
+      
+      # write the workspace name to the file
+      with open(filename, "a") as f:
+        f.write("\n")   
+        f.write("Workspace name: " + workspace_name + "\n")
+        
+      # Get the run details  
+      workspace_url = "https://" + tfe_host + "/api/v2/workspaces/"+ workspace_id + "/runs"
+      response = requests.get(workspace_url, headers=headers)
+      data = response.json()
+      workspace_runs = data["data"]
+      
+      
+      # get the date for every run when it was created
+      for run in workspace_runs:
+        run_id = json.dumps(run["id"]).replace('"','')
+        
+        headers = {
+        'Authorization': f"Bearer {token}",
+        'Content-Type': 'application/vnd.api+json',
+        }
+        run_url = "https://" + tfe_host + "/api/v2/runs/"+ run_id
+        response = requests.get(run_url, headers=headers)
+        data = response.json()     
+        run_created_date = data["data"]["attributes"]["created-at"]   
+        
+        # add this information to the file      
+        with open(filename, "a") as f:
+          f.write("    RUN DATE: " + run_created_date + " RUN ID: " + run_id + "\n")
+
+
+
+workspace_id_list = workspaces_id(get_token(), organization_name)
+
+get_runs(get_token(), organization_name, workspace_id_list)
+
